@@ -1,0 +1,10 @@
+.git
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.DS_Store
+node_modules/
+*.env
+*.log
