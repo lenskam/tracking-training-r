@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install R package manager and all required dependencies
 RUN R -e "install.packages('pacman', repos='http://cran.rstudio.com/')" \
-    && R -e "pacman::p_load(shinyjs, googlesheets4, waiter, googledrive, bslib,shinybusy, shinyalert)"
+    && R -e "pacman::p_load(shinyjs, googlesheets4,waiter,googledrive,shinymanager,bslib,shinybusy, shinyalert,here,rio,shinythemes,dplyr,DT)"
 
 # Copy your application files to the container
 COPY . /home/Training_tracker/
