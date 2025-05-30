@@ -457,11 +457,21 @@ ui <- page_sidebar(
             )
           )
         ),
-        DT::dataTableOutput("table")
+        fluidRow(
+          column(4,
+          actionButton("refresh_table","Refresh the table",icon = icon("sync"))
+          )
+        )
+        ,
+        shinycustomloader::withLoader(DT::dataTableOutput("table"),type="html", loader="pacman")
       ),
       nav_panel(
-        title = "Dashoard",
+        title = "Dashboard",
         icon = icon("dashboard")
+      ),
+      nav_panel(
+        title = "Data table",
+        icon = icon("table")
       )
       
     )
@@ -706,6 +716,7 @@ ui <- secure_app(
     
     theme = shinytheme("flatly"),
     language = "en"
+    
   )
 
 

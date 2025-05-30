@@ -12,9 +12,11 @@ pacman::p_load(
   shinymanager,
   here,
   rio,
+  
   shinythemes,
   dplyr,
   shinyalert,
+  shinycustomloader,
   DT
 )
 

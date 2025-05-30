@@ -14,35 +14,65 @@ server <- function(input,output,session){
     reactiveValuesToList(auth_output)
   })
   
+  observeEvent(input$nav_tabs, {
+    if (input$nav_tabs == "Dashboard"|input$nav_tabs == "Modify a record"|input$nav_tabs == "Data table") {
+      # Toggle the sidebar when Dashboard tab is selected
+      toggle_sidebar(id = "sidebar_toogle",open = "closed")
+    } else {
+      toggle_sidebar(id = "sidebar_toogle",open = "open")
+    }
+  })
+  
   # Hide the dashboard tab for non-admin users
   observe({
     req(res_auth())
     user_data <- res_auth()
     
-    # The structure depends on how shinymanager returns user info
-    # If it's direct access to admin status:
-    if (is.data.frame(user_data$user)) {
-      is_admin <- user_data$user$admin
-    } else if (is.list(user_data$user)) {
-      is_admin <- user_data$user$admin
+    # Déterminer si l'utilisateur est un administrateur
+    is_admin <- FALSE
+    
+    # Vérifier différents formats possibles des données utilisateur
+    if (is.data.frame(user_data$user) && "admin" %in% names(user_data$user)) {
+      is_admin <- isTRUE(user_data$user$admin)
+    } else if (is.list(user_data$user) && "admin" %in% names(user_data$user)) {
+      is_admin <- isTRUE(user_data$user$admin)
     } else {
-      # Try to find admin field in credentials for this user
+      # Recherche dans les credentials
       current_user <- user_data$user
-      if (is.character(current_user)) {
+      if (is.character(current_user) && exists("credentials")) {
         user_row <- which(credentials$user == current_user)
-        if (length(user_row) > 0) {
-          is_admin <- credentials$admin[user_row]
-        } else {
-          is_admin <- FALSE
+        if (length(user_row) > 0 && "admin" %in% names(credentials)) {
+          is_admin <- isTRUE(credentials$admin[user_row])
         }
-      } else {
-        is_admin <- FALSE
       }
     }
     
-    # Hide dashboard for non-admin users
-    if (!isTRUE(is_admin)) {
-      hideTab("nav_tabs", target = "Dashoard")
+    # Ajuster la visibilité des onglets selon le statut
+    if (is_admin) {
+      # Pour administrateurs: montrer Dashboard, cacher les autres
+      hideTab("nav_tabs", target = "Participants")
+      hideTab("nav_tabs", target = "Facilitators")
+      hideTab("nav_tabs", target = "Costs")
+      hideTab("nav_tabs", target = "Documents")
+      hideTab("nav_tabs", target = "Modify a record")
+      showTab("nav_tabs", target = "Dashboard")
+      showTab("nav_tabs", target = "Data table")
+      
+      toggle_sidebar(id = "sidebar_toogle",open = "closed")
+      shinyjs::runjs("document.querySelector('.sidebar').style.display = 'none';")
+      
+    } else {
+      # Pour utilisateurs normaux: cacher Dashboard, montrer les autres
+      hideTab("nav_tabs", target = "Dashboard")
+      hideTab("nav_tabs", target = "Data table")
+      showTab("nav_tabs", target = "Participants")
+      showTab("nav_tabs", target = "Facilitators")
+      showTab("nav_tabs", target = "Costs")
+      showTab("nav_tabs", target = "Documents")
+      showTab("nav_tabs", target = "Modify a record")
+      
+      # Afficher la sidebar pour les utilisateurs standards
+      shinyjs::runjs("document.querySelector('.sidebar').style.display = 'block';")
     }
   })
  
@@ -489,40 +519,67 @@ server <- function(input,output,session){
 
 ## Edit a specific row --------------------------------
 
-  observeEvent(input$nav_tabs, {
-    if (input$nav_tabs == "Dashoard"|input$nav_tabs == "Modify a record") {
-      # Toggle the sidebar when Dashboard tab is selected
-      toggle_sidebar(id = "sidebar_toogle",open = "closed")
-    } else {
-      toggle_sidebar(id = "sidebar_toogle",open = "open")
-    }
+  # Define a reactive value to store the data
+  data_table <- reactiveVal()
+  
+  # Load initial data when app starts
+  observe({
+    data_table(readData() %>%
+                 select(name, domain, subdomain, priority_area,training_date,location, participants_invited,
+                        participants_attended, facilitators_invited, facilitators_attended, starts_with("cost")) %>%
+                 mutate(total_cost = rowSums(across(starts_with("cost")), na.rm = TRUE)) %>%
+                 select(-starts_with("cost")) %>%
+                 rename(
+                   "Training Name" = name,
+                   "Strategies" = domain,
+                   "Program domain" = subdomain,
+                   "Priority Area" = priority_area,
+                   "Location" = location,
+                   "Date"     = training_date,
+                   "Participants Invited" = participants_invited,
+                   "Participants Attended" = participants_attended,
+                   "Facilitators Invited" = facilitators_invited,
+                   "Facilitators Attended" = facilitators_attended,
+                   "Total Cost (XAF)" = total_cost
+                 ))
   })
   
-  output$table <- DT::renderDataTable({
-    
-  dt <- readData() %>% 
-      select(name,domain,subdomain,priority_area,location,participants_invited,
-             participants_attended,facilitators_invited,facilitators_attended,starts_with("cost")) %>% 
-             mutate(total_cost = rowSums(across(starts_with("cost")), na.rm = TRUE)) %>% 
-               select(-starts_with("cost"))%>%
-      rename(
-        "Training Name" = name,
-        "Strategies" = domain,
-        "Program domain" = subdomain,
-        "Priority Area" = priority_area,
-        "Location" = location,
-        "Participants Invited" = participants_invited,
-        "Participants Attended" = participants_attended,
-        "Facilitators Invited" = facilitators_invited,
-        "Facilitators Attended" = facilitators_attended,
-        "Total Cost (XAF)" = total_cost
-      )
-    
-    DT::datatable(dt, 
-                  selection = 'single',
-                  options = list(pageLength = 10))
-    
+  # Refresh when button is clicked
+  observeEvent(input$refresh_table, {
+    data_table(readData() %>%
+                 select(name, domain, subdomain, priority_area, training_date,location, participants_invited,
+                        participants_attended, facilitators_invited, facilitators_attended, starts_with("cost")) %>%
+                 mutate(total_cost = rowSums(across(starts_with("cost")), na.rm = TRUE)) %>%
+                 select(-starts_with("cost")) %>%
+                 rename(
+                   "Training Name" = name,
+                   "Strategies" = domain,
+                   "Program domain" = subdomain,
+                   "Priority Area" = priority_area,
+                   "Location" = location,
+                   "Date"     = training_date,
+                   "Participants Invited" = participants_invited,
+                   "Participants Attended" = participants_attended,
+                   "Facilitators Invited" = facilitators_invited,
+                   "Facilitators Attended" = facilitators_attended,
+                   "Total Cost (XAF)" = total_cost
+                 ))
   })
+  
+  # Render the table
+  output$table <- DT::renderDataTable({
+    req(data_table())
+    DT::datatable(data_table() %>% 
+                    arrange(desc(Date)), 
+                  selection = 'single', options = list(pageLength = 10),
+                  rownames = FALSE
+                  )
+  })
+  
+  
+  
+  
+  
   
   observeEvent(input$table_rows_selected,{
     
@@ -866,6 +923,7 @@ server <- function(input,output,session){
       text = paste0("Record updated successfully"), 
       type = "success"
     )
+    
     
 })
  
